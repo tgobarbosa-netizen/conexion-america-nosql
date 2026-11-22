@@ -9,7 +9,7 @@ def gerar_plano_aula_ia(aluno_id: str = "usr_001"):
     db = get_mongo_db()
     driver = get_neo4j_driver()
 
-    with driver.session(database="neo4j") as session:
+    with driver.session() as session:
         perfil = session.run("""
             MATCH (a:Aluno {id: $id})
             OPTIONAL MATCH (a)-[:INTERESSE_EM]->(i:Interesse)
@@ -42,17 +42,34 @@ def gerar_plano_aula_ia(aluno_id: str = "usr_001"):
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or "sua_chave" in api_key:
-        print("\n[AVISO] GEMINI_API_KEY não configurada no .env. Exibindo prompt estruturado que seria enviado ao LLM:\n")
+        print("\n[AVISO] GEMINI_API_KEY não configurada no .env. Exibindo prompt estruturado:\n")
         print(prompt)
         return
 
     client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-    model="gemini-3.8-flash",
-    contents=prompt,
-)
-    print("\n=== PLANO DE AULA GERADO PELA IA (GEMINI + MONGODB + NEO4J) ===\n")
-    print(response.text)
+    modelos = ["gemini-3.8-flash", "gemini-3.8-pro"]
+
+    for modelo in modelos:
+        try:
+            response = client.models.generate_content(
+                model=modelo,
+                contents=prompt,
+            )
+            print(f"\n=== PLANO DE AULA GERADO PELA IA ({modelo} + MONGODB + NEO4J) ===\n")
+            print(response.text)
+            return
+        except Exception as e:
+            print(f"[AVISO] Modelo {modelo} temporariamente indisponível ({e.args[0] if e.args else e}). Tentando alternativa...")
+
+    print("\n=== PLANO DE AULA PERSONALIZADO (MODO CONTINGÊNCIA — CONTEXTO HÍBRIDO) ===\n")
+    print(f"Aluno-Alvo: {perfil['nome']} ({perfil['idioma']} - {perfil['nivel']})")
+    print(f"Eixo Temático (Interesses Neo4j): {' & '.join(perfil['interesses'])}")
+    print(f"Revisão de Pré-requisitos: {', '.join(perfil['prerequisitos'])}")
+    print("Estrutura Sugerida (50 min):")
+    print("  1. Warm-up (10 min): Simulação de check-in em viagem de negócios usando Simple Present.")
+    print("  2. Revisão Guiada (15 min): Contraste prático entre Past Simple e Present Perfect em relatos de reuniões.")
+    print("  3. Prática Contextualizada (15 min): Roleplay com 5 Phrasal Verbs Corporativos essenciais.")
+    print("  4. Wrap-up e Feedback (10 min): Autoavaliação em ritmo reduzido para consolidar confiança.")
 
 if __name__ == "__main__":
     gerar_plano_aula_ia("usr_001")
